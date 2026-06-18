@@ -5,6 +5,18 @@ workflows inside an immersive retro-terminal aesthetic.
 
 ---
 
+## ⚠️ Disclaimer & Permissive License
+* **100% AI-Prompting Practice:** This entire repository, its architectural layouts, data
+      persistence layers, and markdown blueprints serve as an active documentation exercise for
+      specialized generative AI prompting techniques.
+* **Commercial & Personal Free-Use:** The operational blueprint prompts, implementation
+      instructions, and code blocks contained herein are completely open-source. You are explicitly
+      permitted to use, duplicate, adjust, distribute, or modify any portion of these materials for
+      personal workflows, education, or commercial software engineering solutions without restriction
+      or licensing overhead.
+
+---
+
 ## 🚀 What is it?
 This application is a self-contained, browser-native dashboard designed for agile workflow
 monitoring and chronological timeline planning. It features an interactive **Kanban Board**
