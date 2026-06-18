@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>root@neural_link_v6.7</title>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-base: #000; --bg-surface: #050a05; --bg-card: #081008;
+    --border-bright: #00ff41; --border-dim: #003b00;
+    --neon-green: #00ff41; --neon-critical: #ff0000; --neon-high: #ff8800;
+    --neon-medium: #00f3ff; --neon-low: #00ff41; /* Fixed: Low now matches Neon Green UI */
+    --text-main: #00ff41; --text-muted: #008f11; --font-mono: 'Fira Code', monospace;
+  }
+
+  #confirmModal { z-index: 3000 !important; }
+  #confirmModal.active { display: flex !important; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-mono); background: var(--bg-base); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; text-transform: uppercase; }
+
+  .scanline { position: fixed; inset: 0; background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.1) 50%), linear-gradient(90deg, rgba(255,0,0,0.02), rgba(0,255,0,0.01), rgba(0,255,0,0.02)); background-size: 100% 4px, 3px 100%; z-index: 1000; pointer-events: none; opacity: 0.1; }
+
+  .sidebar { width: 300px; background: var(--bg-surface); border-right: 2px solid var(--border-bright); display: flex; flex-direction: column; z-index: 10; }
+  .logo-area { padding: 20px; border-bottom: 2px solid var(--border-bright); font-size: 1.4rem; font-weight: 700; text-shadow: 0 0 10px var(--neon-green); }
+  .sidebar-list { list-style: none; padding: 0 10px; overflow-y: auto; flex: 1; }
+  .sidebar-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; margin-bottom: 4px; border: 1px solid transparent; cursor: pointer; font-size: 0.8rem; }
+  .sidebar-item.active { background: var(--neon-green); color: var(--bg-base); box-shadow: 0 0 10px var(--neon-green); }
+  .item-actions { display: none; gap: 8px; }
+  .sidebar-item:hover .item-actions { display: flex; }
+  .action-btn { background: none; border: none; color: inherit; cursor: pointer; font-size: 0.9rem; transition: 0.2s; }
+  .action-btn:hover { text-shadow: 0 0 5px currentColor; }
+
+  .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .top-header { padding: 15px 25px; border-bottom: 2px solid var(--border-bright); display: flex; justify-content: space-between; align-items: center; }
+  .btn-hacker { background: transparent; border: 1px solid var(--neon-green); color: var(--neon-green); padding: 8px 15px; cursor: pointer; font-family: var(--font-mono); font-size: 0.75rem; transition: 0.2s; }
+  .btn-hacker:hover, .btn-hacker.active { background: var(--neon-green); color: var(--bg-base); box-shadow: 0 0 10px var(--neon-green); }
+
+  .view-container { flex: 1; padding: 20px; overflow: auto; display: flex; flex-direction: column; }
+  #kanban-view { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; flex: 1; }
+  .column { border: 1px solid var(--border-bright); background: rgba(0, 20, 0, 0.4); border-radius: 4px; display: flex; flex-direction: column; min-width: 250px; }
+  .column-header { padding: 10px; background: var(--border-bright); color: var(--bg-base); font-weight: bold; text-align: center; }
+  .task-list { padding: 10px; min-height: 400px; flex: 1; transition: background 0.2s; }
+  .task-list.drag-over { background: rgba(0, 255, 65, 0.1); }
+
+  .task-card { background: var(--bg-card); border: 1px solid var(--border-dim); padding: 15px; margin-bottom: 12px; cursor: grab; transition: transform 0.2s, box-shadow 0.2s; position: relative; }
+  .task-card.dragging { opacity: 0.2; transform: scale(0.95); border: 1px dashed var(--neon-green); }
+  .task-card.highlight-flash { border-color: white !important; box-shadow: 0 0 25px white !important; z-index: 50; }
+
+  #gantt-view { display: none; flex: 1; overflow: hidden; }
+  .gantt-nav { display: flex; align-items: center; justify-content: center; gap: 30px; padding: 15px; background: var(--bg-surface); border-bottom: 1px solid var(--border-bright); }
+  .gantt-scroller { overflow: auto; height: calc(100% - 65px); }
+  .gantt-table { display: flex; flex-direction: column; width: 100%; min-width: 800px; }
+  .gantt-header-row { display: flex; background: var(--border-dim); border-bottom: 1px solid var(--border-bright); }
+  .gantt-label-col { width: 180px; min-width: 180px; background: var(--bg-surface); border-right: 2px solid var(--border-bright); padding: 10px; font-size: 0.65rem; display: flex; align-items: center; }
+  .gantt-day-cell { flex: 1; min-width: 0; text-align: center; font-size: 0.6rem; border-right: 1px solid rgba(0, 255, 65, 0.1); padding: 8px 0; }
+  .gantt-row { display: flex; height: 35px; border-bottom: 1px solid var(--border-dim); }
+  .gantt-bar-area { flex: 1; position: relative; background-image: linear-gradient(90deg, rgba(0, 255, 65, 0.05) 1px, transparent 1px); background-repeat: repeat-x; }
+  .gantt-bar { position: absolute; height: 18px; top: 8px; border: 1px solid rgba(255, 255, 255, 0.3); opacity: 0.8; cursor: pointer; transition: 0.2s; z-index: 5; }
+  .gantt-bar:hover { opacity: 1; filter: brightness(1.2); box-shadow: 0 0 15px var(--neon-green); transform: scaleY(1.1); }
+  .gantt-bar.critical { background: var(--neon-critical) !important; box-shadow: 0 0 10px var(--neon-critical); }
+  .gantt-bar.high { background: var(--neon-high) !important; box-shadow: 0 0 10px var(--neon-high); }
+  .gantt-bar.medium { background: var(--neon-medium) !important; }
+  .gantt-bar.low { background: var(--neon-low) !important; box-shadow: 0 0 10px var(--neon-low); }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; justify-content: center; align-items: center; z-index: 2000; }
+  .modal-overlay.active { display: flex; }
+  .modal-content { background: var(--bg-surface); border: 2px solid var(--neon-green); width: 450px; padding: 25px; box-shadow: 0 0 30px var(--border-dim); }
+  .cyber-input { width: 100%; background: #000; border: 1px solid var(--border-dim); color: var(--neon-green); padding: 12px; margin: 12px 0; outline: none; font-family: var(--font-mono); font-size: 0.8rem; }
+  .cyber-input:focus { border-color: var(--neon-green); box-shadow: 0 0 10px var(--border-dim); }
+  .cyber-input.error { border-color: var(--neon-critical); box-shadow: 0 0 10px var(--neon-critical); }
+  .cyber-input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(48%) sepia(100%) saturate(3000%) hue-rotate(85deg) brightness(1.2); cursor: pointer; }
+  
+  .modal-title-red { color: red; text-shadow: 0 0 10px red; margin-bottom: 20px; font-weight: bold; text-align: center; }
+  .btn-danger { color: red; border-color: red; }
+  .btn-danger:hover { background: red; color: white; box-shadow: 0 0 15px red; }
+
+  .prio-critical { color: var(--neon-critical); font-weight: bold; }
+  .prio-high { color: var(--neon-high); }
+  .prio-medium { color: var(--neon-medium); }
+  .prio-low { color: var(--neon-low); }
+  .deadline-display { color: var(--neon-green); font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="scanline"></div>
+
+<aside class="sidebar">
+  <div class="logo-area">NEURAL_LINK_V6.7</div>
+  <div style="padding: 10px 15px; font-size: 0.6rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+    <span>// PROJECTS</span>
+    <button class="action-btn" onclick="openProjectModal()" style="color: var(--neon-green);">[+]</button>
+  </div>
+  <ul class="sidebar-list" id="projectList"></ul>
+  <div style="padding: 10px 15px; font-size: 0.6rem; color: var(--text-muted); display: flex; justify-content: space-between; border-top: 1px solid var(--border-dim); margin-top: 10px;">
+    <span>// TEAM_ROSTER</span>
+    <button class="action-btn" onclick="openMemberModal()" style="color: var(--neon-green);">[+]</button>
+  </div>
+  <ul class="sidebar-list" id="memberList"></ul>
+</aside>
+
+<main class="main-content">
+  <header class="top-header">
+    <div id="activeProjectDisplay">NODE_STANDBY</div>
+    <div style="display: flex; gap: 12px;">
+      <button class="btn-hacker active" id="btn-kanban" onclick="switchView('kanban')">KANBAN_CORE</button>
+      <button class="btn-hacker" id="btn-gantt" onclick="switchView('gantt')">GANTT_FLOW</button>
+      <button class="btn-hacker" onclick="openTaskModal()" id="newTaskBtn" disabled>+ NEW_THREAD</button>
+    </div>
+  </header>
+
+  <div class="view-container">
+    <div id="kanban-view">
+      <div class="column"><div class="column-header">TODO</div><div class="task-list" id="todo" ondrop="drop(event, 'todo')" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div></div>
+      <div class="column"><div class="column-header">PROCESSING</div><div class="task-list" id="inprogress" ondrop="drop(event, 'inprogress')" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div></div>
+      <div class="column"><div class="column-header">REVIEW_QA</div><div class="task-list" id="testing" ondrop="drop(event, 'testing')" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div></div>
+      <div class="column"><div class="column-header">DEPLOYED</div><div class="task-list" id="done" ondrop="drop(event, 'done')" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div></div>
+    </div>
+    <div id="gantt-view">
+        <div class="gantt-nav">
+            <button class="btn-hacker" onclick="changeGanttMonth(-1)">&lt; PREV_CYCLE</button>
+            <span id="ganttMonthLabel" style="width: 200px; text-align: center; font-weight: bold; font-size: 1.1rem; letter-spacing: 2px;">MAY 2026</span>
+            <button class="btn-hacker" onclick="changeGanttMonth(1)">NEXT_CYCLE &gt;</button>
+        </div>
+        <div class="gantt-scroller" id="ganttScroller"></div>
+    </div>
+  </div>
+</main>
+
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-content" style="border-color: red;">
+    <div class="modal-title-red">[ TERMINATE_PROTOCOL ]</div>
+    <p id="confirmText" style="font-size: 0.8rem; margin-bottom: 30px; text-align: center;">Erase record from mainframe?</p>
+    <div style="display: flex; gap: 12px;">
+        <button class="btn-hacker btn-danger" id="confirmOk" style="flex: 1;">EXECUTE</button>
+        <button class="btn-hacker" onclick="closeModal('confirmModal')" style="flex: 1;">ABORT</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="projectModal">
+  <div class="modal-content">
+    <div style="border-bottom: 1px solid var(--neon-green); margin-bottom: 20px; font-weight: bold;">PROJECT_INITIALIZATION</div>
+    <input type="hidden" id="editProjectId">
+    <input type="text" id="projectNameInput" class="cyber-input" placeholder="DESIGNATION_NAME">
+    <div style="display: flex; gap: 12px;">
+        <button class="btn-hacker" onclick="saveProject()" style="flex: 1;">START_NODE</button>
+        <button class="btn-hacker" onclick="closeModal('projectModal')">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="memberModal">
+  <div class="modal-content">
+    <div style="border-bottom: 1px solid var(--neon-green); margin-bottom: 20px; font-weight: bold;">OPERATIVE_REGISTRATION</div>
+    <input type="hidden" id="editMemberId">
+    <input type="text" id="memberNameInput" class="cyber-input" placeholder="OPERATIVE_ID">
+    <div style="display: flex; gap: 12px;">
+        <button class="btn-hacker" onclick="saveMember()" style="flex: 1;">REGISTER</button>
+        <button class="btn-hacker" onclick="closeModal('memberModal')">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="taskModal">
+  <div class="modal-content">
+    <div style="border-bottom: 1px solid var(--neon-green); margin-bottom: 20px; font-weight: bold;">TASK_DATA_ENCODING</div>
+    <input type="hidden" id="editTaskId">
+    <input type="hidden" id="taskCreatedTime">
+    <input type="text" id="taskTitle" class="cyber-input" placeholder="TASK_HEADER (REQUIRED)" required>
+    <textarea id="taskDesc" class="cyber-input" placeholder="CORE_DESCRIPTION" rows="3" style="resize: none;"></textarea>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+      <div><label style="font-size: 0.6rem;">START_STAMP</label><input type="date" id="taskStart" class="cyber-input" onchange="syncDeadlineMin()"></div>
+      <div><label style="font-size: 0.6rem;">DEADLINE_STAMP</label><input type="date" id="taskDue" class="cyber-input"></div>
+    </div>
+    <label style="font-size: 0.6rem;">ASSIGNED_OPERATIVE</label><select id="taskAssignee" class="cyber-input"></select>
+    <label style="font-size: 0.6rem;">PRIORITY_LVL</label>
+    <select id="taskPriority" class="cyber-input">
+      <option value="critical">!! CRITICAL !!</option><option value="high">HIGH</option><option value="medium">MEDIUM</option><option value="low">LOW</option>
+    </select>
+    <div style="display: flex; gap: 12px; margin-top: 15px;">
+      <button class="btn-hacker" onclick="saveTask()" style="flex: 1;">SAVE</button>
+      <button class="btn-hacker btn-danger" id="deleteTaskBtn" onclick="deleteTaskClick()" style="display:none;">PURGE</button>
+      <button class="btn-hacker" onclick="closeModal('taskModal')">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'HIRE_OS_V7_ELITE';
+let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
+  projects: [{id: 'p1', name: 'NEXUS_RECOVERY_PHASE'}],
+  team: [{id: 'm1', name: 'NEO_ZERO_ONE'}],
+  tasks: []
+};
+
+let currentProjectId = db.projects[0].id;
+let ganttViewDate = new Date("2026-05-01"); 
+
+function syncDeadlineMin() {
+    const startDate = document.getElementById('taskStart').value;
+    const deadlineInput = document.getElementById('taskDue');
+    if (startDate) {
+        deadlineInput.setAttribute('min', startDate);
+        if (deadlineInput.value && deadlineInput.value < startDate) deadlineInput.value = startDate;
+    } else { deadlineInput.removeAttribute('min'); }
+}
+
+function saveDB() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); document.getElementById('taskTitle').classList.remove('error'); }
+function showConfirm(text, onOk) { document.getElementById('confirmText').textContent = text; document.getElementById('confirmModal').classList.add('active'); document.getElementById('confirmOk').onclick = () => { onOk(); closeModal('confirmModal'); }; }
+
+function renderSidebar() {
+    document.getElementById('projectList').innerHTML = db.projects.map(p => `<li class="sidebar-item ${p.id === currentProjectId ? 'active' : ''}" onclick="selectProject('${p.id}')"><span>> ${p.name}</span><div class="item-actions"><button class="action-btn" onclick="event.stopPropagation(); openProjectModal('${p.id}')">✎</button><button class="action-btn" onclick="event.stopPropagation(); deleteProjectClick('${p.id}')" style="color:red">×</button></div></li>`).join('');
+    document.getElementById('memberList').innerHTML = db.team.map(m => `<li class="sidebar-item" style="cursor: default"><span>@ ${m.name}</span><div class="item-actions"><button class="action-btn" onclick="openMemberModal('${m.id}')">✎</button><button class="action-btn" onclick="deleteMemberClick('${m.id}')" style="color:red">×</button></div></li>`).join('');
+}
+function selectProject(id) { currentProjectId = id; renderSidebar(); renderBoard(); document.getElementById('activeProjectDisplay').textContent = `ACTIVE_SESSION: ${db.projects.find(x=>x.id===id).name}`; document.getElementById('newTaskBtn').disabled = false; }
+
+function openProjectModal(id=null) { 
+    const input = document.getElementById('projectNameInput'); const hidden = document.getElementById('editProjectId');
+    if(id) { input.value = db.projects.find(x=>x.id===id).name; hidden.value = id; } else { input.value = ''; hidden.value = ''; }
+    document.getElementById('projectModal').classList.add('active'); 
+}
+function saveProject() {
+    const name = document.getElementById('projectNameInput').value; const id = document.getElementById('editProjectId').value;
+    if(!name) return;
+    if(id) db.projects.find(p=>p.id===id).name = name; else { const nid = 'p'+Date.now(); db.projects.push({id: nid, name: name}); currentProjectId = nid; }
+    saveDB(); closeModal('projectModal'); selectProject(currentProjectId);
+}
+function deleteProjectClick(id) { showConfirm(`DELETE PROJECT NODE [${db.projects.find(x=>x.id===id).name}]?`, () => { db.projects = db.projects.filter(p=>p.id!==id); db.tasks = db.tasks.filter(t=>t.projectId!==id); if(currentProjectId === id) currentProjectId = db.projects.length > 0 ? db.projects[0].id : null; saveDB(); init(); }); }
+
+function openMemberModal(id=null) { const input = document.getElementById('memberNameInput'); const hidden = document.getElementById('editMemberId'); if(id) { input.value = db.team.find(x=>x.id===id).name; hidden.value = id; } else { input.value = ''; hidden.value = ''; } document.getElementById('memberModal').classList.add('active'); }
+function saveMember() { const name = document.getElementById('memberNameInput').value; const id = document.getElementById('editMemberId').value; if(!name) return; if(id) db.team.find(m=>m.id===id).name = name; else db.team.push({id: 'm'+Date.now(), name: name}); saveDB(); closeModal('memberModal'); renderSidebar(); }
+function deleteMemberClick(id) { showConfirm(`PURGE OPERATIVE @${db.team.find(x=>x.id===id).name}?`, () => { db.team = db.team.filter(m=>m.id!==id); saveDB(); renderSidebar(); }); }
+
+function renderBoard() {
+  ['todo', 'inprogress', 'testing', 'done'].forEach(s => document.getElementById(s).innerHTML = '');
+  db.tasks.filter(t => t.projectId === currentProjectId).forEach(t => {
+    const card = document.createElement('div'); card.className = 'task-card'; card.id = `task-card-${t.id}`;
+    card.draggable = true; 
+    card.ondragstart = (e) => { e.dataTransfer.setData('text', t.id); card.classList.add('dragging'); };
+    card.ondragend = () => card.classList.remove('dragging');
+    card.onclick = () => openTaskModal(t.id);
+    
+    card.innerHTML = `
+        <div style="font-size:0.9rem; font-weight:bold; letter-spacing: 1px; margin-bottom: 8px;">${t.title}</div>
+        <div style="font-size:0.7rem; color: #fff; opacity: 0.7; margin-bottom: 10px; text-transform: none; border-left: 2px solid var(--border-dim); padding-left: 8px; line-height: 1.2;">${t.description || ''}</div>
+        <div style="font-size:0.65rem; color:var(--text-muted); margin-top:5px;">@${t.assignee} | <span class="deadline-display">DUE: ${t.dueDate || 'N/A'}</span></div>
+        <div style="font-size:0.6rem; color:var(--text-muted); margin-top:3px; opacity: 0.6;">CREATED: ${t.createdAt || 'CORE_INITIALIZED'}</div>
+        <div style="font-size:0.7rem; margin-top:10px; font-weight: bold;" class="prio-${t.priority}">[${t.priority.toUpperCase()}]</div>`;
+    document.getElementById(t.status).appendChild(card);
+  });
+}
+
+function openTaskModal(id=null) {
+    document.getElementById('taskAssignee').innerHTML = db.team.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+    const hidden = document.getElementById('editTaskId'), delBtn = document.getElementById('deleteTaskBtn');
+    const titleInput = document.getElementById('taskTitle');
+    titleInput.classList.remove('error');
+
+    if(id) {
+        const t = db.tasks.find(x=>x.id===id); 
+        titleInput.value = t.title;
+        document.getElementById('taskDesc').value = t.description || '';
+        document.getElementById('taskStart').value = t.startDate || ''; 
+        document.getElementById('taskDue').value = t.dueDate || '';
+        document.getElementById('taskAssignee').value = t.assignee; 
+        document.getElementById('taskPriority').value = t.priority;
+        document.getElementById('taskCreatedTime').value = t.createdAt || '';
+        hidden.value = id; delBtn.style.display = 'block';
+    } else { 
+        titleInput.value = ''; 
+        document.getElementById('taskDesc').value = '';
+        document.getElementById('taskStart').value = '';
+        document.getElementById('taskDue').value = '';
+        document.getElementById('taskCreatedTime').value = '';
+        hidden.value = ''; delBtn.style.display = 'none'; 
+    }
+    syncDeadlineMin();
+    document.getElementById('taskModal').classList.add('active');
+}
+
+function saveTask() {
+    const id = document.getElementById('editTaskId').value;
+    const title = document.getElementById('taskTitle').value.trim();
+    
+    if(!title) {
+        document.getElementById('taskTitle').classList.add('error');
+        return;
+    }
+
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const todayISO = now.toISOString().split('T')[0];
+
+    // Default Start Stamp to today if not set
+    const startVal = document.getElementById('taskStart').value || todayISO;
+
+    const data = { 
+        id: id || 't'+Date.now(), 
+        projectId: currentProjectId, 
+        title: title, 
+        description: document.getElementById('taskDesc').value,
+        startDate: startVal, 
+        dueDate: document.getElementById('taskDue').value, 
+        assignee: document.getElementById('taskAssignee').value, 
+        priority: document.getElementById('taskPriority').value, 
+        status: id ? db.tasks.find(x=>x.id===id).status : 'todo',
+        createdAt: id ? document.getElementById('taskCreatedTime').value : timestamp
+    };
+
+    if(id) {
+        const idx = db.tasks.findIndex(x=>x.id===id);
+        db.tasks[idx] = data;
+    } else {
+        db.tasks.push(data);
+    }
+    
+    saveDB(); 
+    closeModal('taskModal'); 
+    renderBoard();
+}
+
+function deleteTaskClick() {
+    const id = document.getElementById('editTaskId').value;
+    if (!id) return;
+    showConfirm(`PURGE TASK DATA [${db.tasks.find(x=>x.id===id).title}]?`, () => {
+        db.tasks = db.tasks.filter(t=>t.id!==id);
+        saveDB(); renderBoard(); closeModal('taskModal');
+    });
+}
+
+function changeGanttMonth(dir) { ganttViewDate.setMonth(ganttViewDate.getMonth() + dir); renderGantt(); }
+function renderGantt() {
+  const label = document.getElementById('ganttMonthLabel');
+  label.textContent = ganttViewDate.toLocaleString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
+  const scroller = document.getElementById('ganttScroller'); scroller.innerHTML = '';
+  const firstDay = new Date(ganttViewDate.getFullYear(), ganttViewDate.getMonth(), 1);
+  const lastDay = new Date(ganttViewDate.getFullYear(), ganttViewDate.getMonth() + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  const pTasks = db.tasks.filter(t => {
+      if(!t.startDate || !t.dueDate) return false;
+      const ts = new Date(t.startDate + 'T00:00:00'), td = new Date(t.dueDate + 'T00:00:00');
+      return t.projectId === currentProjectId && ts <= lastDay && td >= firstDay;
+  });
+  const table = document.createElement('div'); table.className = 'gantt-table';
+  let hRow = `<div class="gantt-header-row"><div class="gantt-label-col">TASK_STREAM</div>`;
+  for(let i=1; i<=daysInMonth; i++) hRow += `<div class="gantt-day-cell">${i}</div>`;
+  table.innerHTML = hRow + '</div>';
+  pTasks.forEach(t => {
+    const ts = new Date(t.startDate + 'T00:00:00'), td = new Date(t.dueDate + 'T00:00:00');
+    const start = ts < firstDay ? 1 : ts.getDate();
+    const end = td > lastDay ? daysInMonth : td.getDate();
+    const duration = (end - start) + 1;
+    const offset = (start - 1);
+    const row = document.createElement('div'); row.className = 'gantt-row';
+    row.innerHTML = `<div class="gantt-label-col">${t.title}</div><div class="gantt-bar-area" style="background-size: ${100/daysInMonth}% 100%;"><div class="gantt-bar ${t.priority}" style="left:${(offset/daysInMonth)*100}%; width:${(duration/daysInMonth)*100}%" onclick="jumpToTask('${t.id}')"></div></div>`;
+    table.appendChild(row);
+  });
+  scroller.appendChild(table);
+}
+
+function jumpToTask(id) {
+    switchView('kanban');
+    const el = document.getElementById(`task-card-${id}`);
+    if(el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('highlight-flash'); setTimeout(() => el.classList.remove('highlight-flash'), 2500); }
+}
+
+function switchView(view) {
+    document.getElementById('kanban-view').style.display = view === 'kanban' ? 'grid' : 'none';
+    document.getElementById('gantt-view').style.display = view === 'gantt' ? 'block' : 'none';
+    document.querySelectorAll('.btn-hacker').forEach(b => b.classList.remove('active'));
+    document.getElementById('btn-' + view).classList.add('active');
+    if(view === 'gantt') renderGantt();
+}
+function allowDrop(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function dragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function drop(e, status) { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); const id = e.dataTransfer.getData('text'); db.tasks.find(x => x.id === id).status = status; saveDB(); renderBoard(); }
+function init() { renderSidebar(); selectProject(currentProjectId); }
+init();
+</script>
+</body>
+</html>
